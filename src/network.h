@@ -21,7 +21,7 @@ typedef struct network{
     float *workspace;
     int n;
     int batch;
-	uint64_t *seen;
+	int *seen;
     float epoch;
     int subdivisions;
     float momentum;
@@ -42,6 +42,7 @@ typedef struct network{
     int   *steps;
     int num_steps;
     int burn_in;
+    int cudnn_half;
 
     int adam;
     float B1;
@@ -52,18 +53,27 @@ typedef struct network{
     int h, w, c;
     int max_crop;
     int min_crop;
+    int flip; // horizontal flip 50% probability augmentaiont for classifier training (default = 1)
     float angle;
     float aspect;
     float exposure;
     float saturation;
     float hue;
+	int small_object;
 
     int gpu_index;
     tree *hierarchy;
 
     #ifdef GPU
+    float *input_state_gpu;
+
     float **input_gpu;
     float **truth_gpu;
+	float **input16_gpu;
+	float **output16_gpu;
+	size_t *max_input16_size;
+	size_t *max_output16_size;
+	int wait_stream;
     #endif
 } network;
 
@@ -107,7 +117,7 @@ float train_network_sgd(network net, data d, int n);
 float train_network_datum(network net, float *x, float *y);
 
 matrix network_predict_data(network net, data test);
-float *network_predict(network net, float *input);
+YOLODLL_API float *network_predict(network net, float *input);
 float network_accuracy(network net, data d);
 float *network_accuracies(network net, data d, int n);
 float network_accuracy_multi(network net, data d, int n);
@@ -127,9 +137,24 @@ int resize_network(network *net, int w, int h);
 void set_batch_network(network *net, int b);
 int get_network_input_size(network net);
 float get_network_cost(network net);
+YOLODLL_API layer* get_network_layer(network* net, int i);
+YOLODLL_API detection *get_network_boxes(network *net, int w, int h, float thresh, float hier, int *map, int relative, int *num, int letter);
+YOLODLL_API detection *make_network_boxes(network *net, float thresh, int *num);
+YOLODLL_API void free_detections(detection *dets, int n);
+YOLODLL_API void reset_rnn(network *net);
+YOLODLL_API network *load_network_custom(char *cfg, char *weights, int clear, int batch);
+YOLODLL_API network *load_network(char *cfg, char *weights, int clear);
+YOLODLL_API float *network_predict_image(network *net, image im);
+YOLODLL_API void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear, int dont_show, int calc_map);
+YOLODLL_API int network_width(network *net);
+YOLODLL_API int network_height(network *net);
+
+YOLODLL_API void optimize_picture(network *net, image orig, int max_layer, float scale, float rate, float thresh, int norm);
 
 int get_network_nuisance(network net);
 int get_network_background(network net);
+YOLODLL_API void fuse_conv_batchnorm(network net);
+YOLODLL_API void calculate_binary_weights(network net);
 
 #ifdef __cplusplus
 }
